@@ -46,7 +46,7 @@ export async function scrapeClearance(req: TypedRequest, res: Response) {
         browserLogger.info("Starting browser");
 
         const connectOptions: any = {
-            headless: false,
+            headless: true,
             args: [],
             customConfig: {},
             turnstile: true,
@@ -76,11 +76,11 @@ export async function scrapeClearance(req: TypedRequest, res: Response) {
 
         if (await isBlocked(page)) {
             browserLogger.info(
-                "You were blocked by Cloudflare, this is likely because your IP address is blacklisted or your proxy is unreliable"
+                "You were blocked by Cloudflare, this is likely because your IP address is blacklisted or your proxy is unreliable",
             );
             return handleFailureResponse(
                 ErrorResponse.create("error", "Blocked by Cloudflare"),
-                res
+                res,
             );
         }
 
@@ -115,11 +115,11 @@ export async function scrapeClearance(req: TypedRequest, res: Response) {
     }
 }
 
-async function getClearance(
+/*async function getClearance(
     page: PageWithCursor,
     browser: Browser,
     data: ScrapeClearanceData,
-    logger: pino.Logger
+    logger: pino.Logger,
 ) {
     logger.info("Waiting for Cloudflare challenge to complete");
 
@@ -127,8 +127,17 @@ async function getClearance(
 
     return new Promise(async (resolve, reject) => {
         await page.setRequestInterception(true);
-        page.on("request", async (request) => request.continue());
+        page.on("request", async (request) => {
+            request.continue();
+        });
         page.on("response", async (res) => {
+            const cookies = await browser.cookies();
+            console.log(cookies);
+            if (!reloaded) {
+                page.reload();
+                reloaded = true;
+                console.log("RELOADED");
+            }
             try {
                 if (
                     [200, 302].includes(res.status()) &&
@@ -156,4 +165,40 @@ async function getClearance(
             }
         }, data.timeout || 60000);
     });
+}*/
+
+async function getClearance(
+    page: PageWithCursor,
+    browser: Browser,
+    data: ScrapeClearanceData,
+    logger: pino.Logger,
+) {
+    logger.info("Waiting for Cloudflare challenge to complete");
+
+    try {
+        // Navigate to the target URL
+        const response = await page.goto(data.url, {
+            waitUntil: "load",
+            timeout: data.timeout || 60000,
+        });
+
+        // Optional: wait a bit for Cloudflare challenge to finish
+         await new Promise((r) => setTimeout(r, 1500));
+
+        // Get cookies from the current browser context
+        const cookies = await page.cookies();
+
+        // Get main request headers
+        if(!response){
+            throw Error()
+        }
+        const headers = { ...response.request().headers() };
+        ["content-type", "accept-encoding", "accept", "content-length"].forEach(
+            (h) => delete headers[h],
+        );
+
+        return { cookies, headers };
+    } catch (err) {
+        throw new Error("Timeout or navigation failed: ");
+    }
 }

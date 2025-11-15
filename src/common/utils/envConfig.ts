@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { cleanEnv, host, num, port, str, testOnly } from "envalid";
 
+process.env.NODE_ENV = "development"
 dotenv.config({ path: `.env.${process.env.NODE_ENV}` });
 
 export const env = cleanEnv(process.env, {
