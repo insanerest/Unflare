@@ -46,7 +46,7 @@ export async function scrapeClearance(req: TypedRequest, res: Response) {
         browserLogger.info("Starting browser");
 
         const connectOptions: any = {
-            headless: true,
+            headless: false,
             args: [],
             customConfig: {},
             turnstile: true,
@@ -186,7 +186,7 @@ async function getClearance(
          await new Promise((r) => setTimeout(r, 1500));
 
         // Get cookies from the current browser context
-        const cookies = await page.cookies();
+        const cookies = await browser.cookies();
 
         // Get main request headers
         if(!response){

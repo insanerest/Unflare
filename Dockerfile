@@ -45,7 +45,6 @@ WORKDIR /usr/src/app
 # Copy package files and install dependencies using pnpm
 COPY package*.json ./
 COPY . .
-
 RUN pnpm install --frozen-lockfile
 
 # Copy remaining application code and build
@@ -54,4 +53,5 @@ RUN pnpm run build
 EXPOSE 8080
 ENV NODE_ENV=production
 
-CMD ["pnpm", "run", "start"]
+# Start Xvfb and then your Node app
+CMD ["bash", "-c", "Xvfb :99 -screen 0 1920x1080x24 & export DISPLAY=:99 && pnpm run start"]
