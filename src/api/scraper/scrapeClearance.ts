@@ -8,9 +8,10 @@ import { handleFailureResponse, handleSuccessResponse } from "@/common/utils/htt
 import { logger } from "@/server";
 import type { Request, Response } from "express";
 import type pino from "pino";
-import { connect, type PageWithCursor } from "puppeteer-real-browser";
+import { connect, type PageWithCursor, type Options } from "puppeteer-real-browser";
 import type { Browser } from "rebrowser-puppeteer-core";
 import { z } from "zod";
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 const ProxySchema = z.object({
     host: z.string(),
@@ -45,16 +46,23 @@ export async function scrapeClearance(req: TypedRequest, res: Response) {
 
         browserLogger.info("Starting browser");
 
-        const connectOptions: any = {
+        const connectOptions: Options = {
             headless: false,
-            args: [],
-            customConfig: {},
             turnstile: true,
-            connectOption: {},
-            disableXvfb: false,
             ignoreAllFlags: false,
+            args: [
+                '--disable-infobars',
+                '--disable-extensions',
+                '--no-default-browser-check',
+                '--no-first-run',
+                '--disable-backgrounding-occluded-windows',
+                '--mute-audio',
+            ],
+            plugins: [StealthPlugin()],
+            customConfig: {
+                chromePath: '/Applications/Chromium.app/Contents/MacOS/Chromium',
+            },
         };
-
         if (data.proxy) {
             connectOptions.proxy = { ...data.proxy };
         }
@@ -62,9 +70,18 @@ export async function scrapeClearance(req: TypedRequest, res: Response) {
         const connection = await connect(connectOptions);
 
         browser = connection.browser;
-        page = connection.page;
+        page = connection.page
 
         page.setDefaultTimeout(data.timeout ?? 60_000);
+
+        const pagesession = await page.target().createCDPSession();
+        const { windowId } = await pagesession.send("Browser.getWindowForTarget");
+
+        // Minimize window
+        await pagesession.send("Browser.setWindowBounds", {
+            windowId,
+            bounds: { windowState: "minimized" },
+        });
 
         if (data.method === "GET") {
             await page.goto(data.url, { waitUntil: "networkidle2" });
@@ -183,14 +200,14 @@ async function getClearance(
         });
 
         // Optional: wait a bit for Cloudflare challenge to finish
-         await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1500));
 
         // Get cookies from the current browser context
         const cookies = await browser.cookies();
 
         // Get main request headers
-        if(!response){
-            throw Error()
+        if (!response) {
+            throw Error();
         }
         const headers = { ...response.request().headers() };
         ["content-type", "accept-encoding", "accept", "content-length"].forEach(
